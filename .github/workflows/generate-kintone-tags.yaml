@@ -1,35 +1,28 @@
 name: Generate kintone clients per tag
-
 on:
   workflow_dispatch: {}
   schedule:
     - cron: "0 18 * * *"  # 毎日(UTC 18:00 = JST 03:00)
-
 jobs:
   generate:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v4
-
       - name: Checkout kintone/rest-api-spec
         uses: actions/checkout@v4
         with:
           repository: kintone/rest-api-spec
           path: rest-api-spec
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
-
+          go-version: "1.22"
       - name: Install yq
         run: |
           sudo wget -qO /usr/local/bin/yq \
             https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
-
       - name: Find latest kintone bundled spec
         id: spec
         run: |
@@ -39,61 +32,47 @@ jobs:
           echo "latest_dir=${LATEST_DIR}" >> "$GITHUB_OUTPUT"
           echo "spec_file=${SPEC_FILE}" >> "$GITHUB_OUTPUT"
           echo "Using spec: ${SPEC_FILE}"
-
       - name: Generate per-tag clients
         run: |
           set -e
           SPEC_FILE="${{ steps.spec.outputs.spec_file }}"
-
           mkdir -p tags
-
           # OpenAPI の paths 配下から tags を全部拾ってユニーク化
           TAGS=$(yq '.paths.*.*.tags[]' "${SPEC_FILE}" | sort -u)
-
           echo "Found tags:"
           echo "${TAGS}"
-
           for TAG in ${TAGS}; do
             echo "==> Generating client for tag: ${TAG}"
-
             # パッケージ名に使える形に変換（小文字 + 非英数字をアンダースコア）
             PKG_NAME=$(echo "${TAG}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g')
             # 先頭・末尾の _ を削る
             PKG_NAME=$(echo "${PKG_NAME}" | sed -E 's/^_+//; s/_+$//')
-
             if [ -z "${PKG_NAME}" ]; then
               echo "  -> tag '${TAG}' cannot be converted to a package name, skipping."
               continue
             fi
-
             PKG_DIR="tags/${PKG_NAME}"
             mkdir -p "${PKG_DIR}"
-
             CFG_FILE="${PKG_DIR}/cfg.yaml"
-
             cat > "${CFG_FILE}" <<EOF
-package: ${PKG_NAME}
-output: client.gen.go
-generate:
-  models: true
-  client: true
-output-options:
-  include-tags:
-    - ${TAG}
-  skip-prune: true
-EOF
-
+          package: ${PKG_NAME}
+          output: client.gen.go
+          generate:
+            models: true
+            client: true
+          output-options:
+            include-tags:
+              - ${TAG}
+            skip-prune: true
+          EOF
             echo "  -> cfg.yaml written at ${CFG_FILE}"
-
             # oapi-codegen 実行（spec は絶対パスを渡す）
             ( cd "${PKG_DIR}" && \
               go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.0 \
                 -config cfg.yaml \
                 "${GITHUB_WORKSPACE}/${SPEC_FILE}" )
-
             gofmt -w "${PKG_DIR}/client.gen.go"
           done
-
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
@@ -103,5 +82,4 @@ EOF
             This PR regenerates the per-tag kintone Go clients from the latest rest-api-spec.
           branch: chore/regenerate-kintone-per-tag
           base: main
-          add-paths: |
-            tags/
+          add-paths: tags/
