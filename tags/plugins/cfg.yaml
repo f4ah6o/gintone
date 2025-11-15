@@ -1,0 +1,9 @@
+package: plugins
+output: client.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  include-tags:
+    - PLUGINS
+  skip-prune: true

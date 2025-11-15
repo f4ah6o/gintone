@@ -1,0 +1,9 @@
+package: records
+output: client.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  include-tags:
+    - RECORDS
+  skip-prune: true

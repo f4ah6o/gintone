@@ -1,0 +1,9 @@
+package: files
+output: client.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  include-tags:
+    - FILES
+  skip-prune: true
