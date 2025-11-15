@@ -32,10 +32,19 @@ jobs:
           echo "latest_dir=${LATEST_DIR}" >> "$GITHUB_OUTPUT"
           echo "spec_file=${SPEC_FILE}" >> "$GITHUB_OUTPUT"
           echo "Using spec: ${SPEC_FILE}"
-      - name: Generate per-tag clients
+      - name: Sanitize OpenAPI spec
+        id: sanitize
         run: |
           set -e
           SPEC_FILE="${{ steps.spec.outputs.spec_file }}"
+          SANITIZED_SPEC="${SPEC_FILE%.yaml}.sanitized.yaml"
+          echo "Sanitizing ${SPEC_FILE} -> ${SANITIZED_SPEC}"
+          go run ./cmd/sanitizeopenapi -in "${SPEC_FILE}" -out "${SANITIZED_SPEC}"
+          echo "spec_file=${SANITIZED_SPEC}" >> "$GITHUB_OUTPUT"
+      - name: Generate per-tag clients
+        run: |
+          set -e
+          SPEC_FILE="${{ steps.sanitize.outputs.spec_file }}"
           mkdir -p tags
           # OpenAPI の paths 配下から tags を全部拾ってユニーク化
           TAGS=$(yq '.paths.*.*.tags[]' "${SPEC_FILE}" | sort -u)
