@@ -1,0 +1,9 @@
+package: fields
+output: client.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  include-tags:
+    - FIELDS
+  skip-prune: true
